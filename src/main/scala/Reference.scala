@@ -18,11 +18,7 @@ object ReferenceTypes {
     case class ParseState(loc: Location)  {
     def advanceBy(numChars: Int): ParseState =
     {
-       //Macros.hello
-     // SimpleMacroLogger.info("PS: advance by " + numChars)
-       // hello
       RefLogger.info("PS:advance by " + numChars)
-    //  logger.debug("PS:advance by " + numChars)
       copy(loc = loc.copy(offset = loc.offset + numChars))
     }
     def input: String = loc.input.substring(loc.offset)
@@ -118,7 +114,7 @@ object ReferenceTypes {
       }
       else {
         //logger.debug("string: str fail")
-        RefLogger.info("string: str fail")
+        RefLogger.info(s"string: str fail i = $i, msg = $msg")
         Failure(s.loc.advanceBy(i).toError(msg), i != 0)
       }
     }
