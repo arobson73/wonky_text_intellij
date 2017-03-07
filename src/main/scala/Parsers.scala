@@ -65,8 +65,10 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   implicit def regex(r: Regex): Parser[String]
 
   /*
-  These can be implemented using a for-comprehension, which delegates to the `flatMap` and `map` implementations we've provided on `ParserOps`, or they can be implemented in terms of these functions directly.
+  These can be implemented using a for-comprehension, which delegates to the `flatMap` and `map` implementations we've provided on `ParserOps`,
+   or they can be implemented in terms of these functions directly.
   */
+  //this is just like a match. if parser is (char('a'),char'a')) then this will return Right((a,a))
   def product[A,B](p: Parser[A], p2: => Parser[B]): Parser[(A,B)] =
     flatMap(p)(a => map(p2)(b => (a,b)))
  //this will look like
@@ -78,39 +80,46 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 
   def map[A,B](a: Parser[A])(f: A => B): Parser[B] =
     flatMap(a)(f andThen succeed)
-
+  //this is just a label we can attach to the error message (assuming there is a parse error
   def label[A](msg: String)(p: Parser[A]): Parser[A]
-
+  //TODO: come back to this
   def scope[A](msg: String)(p: Parser[A]): Parser[A]
-
+  //just attempts the parser and puts it in uncommited state if failed.
   def attempt[A](p: Parser[A]): Parser[A]
 
   /** Sequences two parsers, ignoring the result of the first.
     * We wrap the ignored half in slice, since we don't care about its result. */
+  //TODO: come back to this
   def skipL[B](p: Parser[Any], p2: => Parser[B]): Parser[B] =
     map2(slice(p), p2)((_,b) => b)
 
   /** Sequences two parsers, ignoring the result of the second.
     * We wrap the ignored half in slice, since we don't care about its result. */
+  //TODO: ditto
   def skipR[A](p: Parser[A], p2: => Parser[Any]): Parser[A] =
     map2(p, slice(p2))((a,b) => a)
-
+//TODO:ditto
   def opt[A](p: Parser[A]): Parser[Option[A]] =
     p.map(Some(_)) or succeed(None)
 
   /** Parser which consumes zero or more whitespace characters. */
+  //TODO: ditto
   def whitespace: Parser[String] = "\\s*".r
 
   /** Parser which consumes 1 or more digits. */
+  //TODO: ditto
   def digits: Parser[String] = "\\d+".r
 
   /** Parser which consumes reluctantly until it encounters the given string. */
+  //TODO: ditto
   def thru(s: String): Parser[String] = (".*?"+Pattern.quote(s)).r
 
   /** Unescaped string literals, like "foo" or "bar". */
+  //TODO: ditto
   def quoted: Parser[String] = string("\"") *> thru("\"").map(_.dropRight(1))
 
   /** Unescaped or escaped string literals, like "An \n important \"Quotation\"" or "bar". */
+  //TODO: ditto
   def escapedQuoted: Parser[String] =
     // rather annoying to write, left as an exercise
     // we'll just use quoted (unescaped literals) for now
@@ -119,38 +128,47 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   /** C/Java style floating point literals, e.g .1, -1.0, 1e9, 1E-23, etc.
     * Result is left as a string to keep full precision
     */
+  //TODO: ditto
   def doubleString: Parser[String] =
     token("[-+]?([0-9]*\\.)?[0-9]+([eE][-+]?[0-9]+)?".r)
 
   /** Floating point literals, converted to a `Double`. */
+  //TODO: ditto
   def double: Parser[Double] =
     doubleString map (_.toDouble) label "double literal"
 
   /** Attempts `p` and strips trailing whitespace, usually used for the tokens of a grammar. */
+  //TODO: ditto
   def token[A](p: Parser[A]): Parser[A] =
     attempt(p) <* whitespace
 
   /** Zero or more repetitions of `p`, separated by `p2`, whose results are ignored. */
+  //TODO: ditto
   def sep[A](p: Parser[A], p2: Parser[Any]): Parser[List[A]] = // use `Parser[Any]` since don't care about result type of separator
     sep1(p,p2) or succeed(List())
 
   /** One or more repetitions of `p`, separated by `p2`, whose results are ignored. */
+  //TODO: ditto
   def sep1[A](p: Parser[A], p2: Parser[Any]): Parser[List[A]] =
     map2(p, many(p2 *> p))(_ :: _)
 
   /** Parses a sequence of left-associative binary operators with the same precedence. */
+  //TODO: ditto
   def opL[A](p: Parser[A])(op: Parser[(A,A) => A]): Parser[A] =
     map2(p, many(op ** p))((h,t) => t.foldLeft(h)((a,b) => b._1(a,b._2)))
 
   /** Wraps `p` in start/stop delimiters. */
+  //TODO: ditto
   def surround[A](start: Parser[Any], stop: Parser[Any])(p: => Parser[A]) =
     start *> p <* stop
 
   /** A parser that succeeds when given empty input. */
+  //TODO: ditto
   def eof: Parser[String] =
     regex("\\z".r).label("unexpected trailing characters")
 
   /** The root of the grammar, expects no further input following `p`. */
+  //TODO: ditto
   def root[A](p: Parser[A]): Parser[A] =
     p <* eof
 
@@ -203,9 +221,10 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   }
   ParLogger.info("Loc:col= "  + col )
   ParLogger.info("Loc:str= " + input)
-  def toError(msg: String): ParseError =
+  def toError(msg: String): ParseError = {
     ParseError(List((this, msg)))
-
+  }
+  //this return a new copy of Location
   def advanceBy(n: Int) =
   {
     val opn = offset + n
@@ -215,7 +234,8 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 
   /* Returns the line corresponding to this location */
   def currentLine: String =
-    if (input.length > 1) input.lines.drop(line-1).next
+    //if (input.length > 1) input.lines.drop(line-1).next
+    if (input.length > 0) input.lines.drop(line-1).next
     else ""
 
   def columnCaret = (" " * (col-1)) + "^"
@@ -261,11 +281,20 @@ case class ParseError(stack: List[(Location,String)] = List()) {
   /* Builds a collapsed version of the given error stack -
    * messages at the same location have their messages merged,
    * separated by semicolons */
-  def collapseStack(s: List[(Location,String)]): List[(Location,String)] =
+  def collapseStack(s: List[(Location,String)]): List[(Location,String)] = {
+    /*
+    for (elem <- s) {
+      val in = elem._1.input
+      val col = elem._1.col
+      val line = elem._1.line
+      val off = elem._1.offset
+      ParLogger.info(s"CollS input= $in, col=$col,line=$line,off=$off ")
+      ParLogger.info(s"CollS: str = ${elem._2}")
+    }*/
     s.groupBy(_._1).
       mapValues(_.map(_._2).mkString("; ")).
       toList.sortBy(_._1.offset)
-
+  }
   def formatLoc(l: Location): String = l.line + "." + l.col
 }
 
