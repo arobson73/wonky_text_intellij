@@ -18,9 +18,10 @@ import macrologgers.{SimpleMacroLogger => ParLogger}
 //trait Parsers[Parser[+_]] extends LazyLogging { self => // so inner classes may call methods of trait
 trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trait
   def run[A](p: Parser[A])(input: String): Either[ParseError,A]
+  def runo[A](p: Parser[A])(input: String, off:Int): Either[ParseError,A]
 
-  implicit def string(s: String): Parser[String]
-  implicit def operators[A](p: Parser[A]) = ParserOps[A](p)
+  implicit def string(s: String): Parser[String] // note commenting this out has no effect
+  implicit def operators[A](p: Parser[A]) = ParserOps[A](p)// can't comment this out. all those ops need it
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]):
     ParserOps[String] = ParserOps(f(a))
 
@@ -77,7 +78,8 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     ParLogger.info("Parsers:map2")
     for {a <- p; b <- p2} yield f(a, b)
   }
-
+  //note if is used here , then it will succeed. if the input was erronous, then
+  //f would not get as far as being called.
   def map[A,B](a: Parser[A])(f: A => B): Parser[B] =
     flatMap(a)(f andThen succeed)
   //this is just a label we can attach to the error message (assuming there is a parse error
@@ -89,13 +91,11 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
 
   /** Sequences two parsers, ignoring the result of the first.
     * We wrap the ignored half in slice, since we don't care about its result. */
-  //TODO: come back to this
   def skipL[B](p: Parser[Any], p2: => Parser[B]): Parser[B] =
     map2(slice(p), p2)((_,b) => b)
 
   /** Sequences two parsers, ignoring the result of the second.
     * We wrap the ignored half in slice, since we don't care about its result. */
-  //TODO: ditto
   def skipR[A](p: Parser[A], p2: => Parser[Any]): Parser[A] =
     map2(p, slice(p2))((a,b) => a)
 //TODO:ditto
@@ -138,7 +138,11 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
     doubleString map (_.toDouble) label "double literal"
 
   /** Attempts `p` and strips trailing whitespace, usually used for the tokens of a grammar. */
-  //TODO: ditto
+  //ditto <* is skipR , so skipR(attempt(p),whitespace) is how its really called
+  //think of this as parsing some input string like "abcd   " and also parsing the white space.
+  //the white space is skipped / ignored, but its still taken into account in terms of
+  //state update, so that when the next token is asked for it will not try to match whitespace
+  //that it has already skipped.
   def token[A](p: Parser[A]): Parser[A] =
     attempt(p) <* whitespace
 
@@ -214,7 +218,7 @@ trait Parsers[Parser[+_]] { self => // so inner classes may call methods of trai
   case class Location(input: String, offset: Int = 0)  {
 
   lazy val line = input.slice(0,offset+1).count(_ == '\n') + 1
-  ParLogger.info("Location:line " + line)
+  ParLogger.info("Loc:line " + line)
   lazy val col = input.slice(0,offset+1).lastIndexOf('\n') match {
     case -1 => offset + 1
     case lineStart => offset - lineStart

@@ -18,11 +18,15 @@ object ReferenceTypes {
     case class ParseState(loc: Location)  {
     def advanceBy(numChars: Int): ParseState =
     {
-      RefLogger.info("PS:advance by " + numChars)
+      RefLogger.info("PS:advanceBy " + numChars)
       copy(loc = loc.copy(offset = loc.offset + numChars))
     }
     def input: String = loc.input.substring(loc.offset)
-    def slice(n: Int) = loc.input.substring(loc.offset, loc.offset + n)
+    def slice(n: Int) = {
+      val s = loc.input.substring(loc.offset, loc.offset + n)
+      RefLogger.info("PS:slice " + s)
+      s
+    }
   }
 
   /* Likewise, we define a few helper functions on `Result`. */
@@ -60,9 +64,10 @@ object ReferenceTypes {
   def firstNonmatchingIndex(s1: String, s2: String, offset: Int): Int = {
    // logger.debug(s"FNMI: s1 = $s1, s2 = $s2, offset = $offset")
     RefLogger.info(s"FNMI: s1 = $s1, s2 = $s2, offset = $offset")
-    if(offset >= s1.length ) return 0
+  //  if(offset >= s1.length ) return 0
     var i = 0
     while (i < s1.length && i < s2.length) {
+      if((offset + i) >= s1.length) return  i
       if (s1.charAt(i+offset) != s2.charAt(i)) return i
       i += 1
     }
@@ -76,18 +81,33 @@ object ReferenceTypes {
 
   def run[A](p: Parser[A])(s: String): Either[ParseError,A] = {
     val s0 = ParseState(Location(s))
-    RefLogger.info("run: after Parse State")
+    RefLogger.info("Ref:run: after Parse State")
     //logger.debug("run: after Parse State")
     p(s0).extract
   }
-
+  //just for debuggin - allow offset to be passed in
+  def runo[A](p: Parser[A])(s: String, off: Int): Either[ParseError,A] = {
+    val s0 = ParseState(Location(s,off))
+    RefLogger.info("Ref:runo: after Parse State")
+    //logger.debug("run: after Parse State")
+    p(s0).extract
+  }
   // consume no characters and succeed with the given value
   def succeed[A](a: A): Parser[A] = s => Success(a, 0)
-
+  //note this logic seems to match the book description.
+  //that is , if commited, then don't evaluate the rhs side of the OR
   def or[A](p: Parser[A], p2: => Parser[A]): Parser[A] =
     s => p(s) match {
-      case Failure(e,false) => p2(s)
-      case r => r // committed failure or success skips running `p2`
+      case Failure(e,false) =>
+        {
+          RefLogger.info("Ref:or:failed first or, try next parser")
+          p2(s)
+        }
+      case r =>
+        {
+          RefLogger.info("Ref:or:not fail")
+          r
+        } // committed failure or success skips running `p2`
     }
 
   def flatMap[A,B](f: Parser[A])(g: A => Parser[B]): Parser[B] = {
@@ -141,10 +161,13 @@ object ReferenceTypes {
 
   def attempt[A](p: Parser[A]): Parser[A] =
     s => p(s).uncommit
-
+  //just slices input string to matcher length
   def slice[A](p: Parser[A]): Parser[String] =
     s => p(s) match {
-      case Success(_,n) => Success(s.slice(n),n)
+      case Success(_,n) => {
+        RefLogger.info("slice: n =" + n)
+        Success(s.slice(n),n)
+      }
       case f@Failure(_,_) => f
     }
 
